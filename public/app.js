@@ -908,19 +908,284 @@ function deleteRecipe(id) {
 }
 
 function viewMealPlan(id) {
-    console.log('View meal plan:', id);
-    // TODO: Implement meal plan view
+    showMealPlanModal(id);
 }
 
 function editMealPlan(id) {
-    console.log('Edit meal plan:', id);
-    // TODO: Implement meal plan edit
+    showEditMealPlanModal(id);
 }
 
 function deleteMealPlan(id) {
     if (confirm('Are you sure you want to delete this meal plan?')) {
-        console.log('Delete meal plan:', id);
-        // TODO: Implement meal plan deletion
+        deleteMealPlanRequest(id);
+    }
+}
+
+// Show meal plan details modal
+async function showMealPlanModal(mealPlanId) {
+    try {
+        showLoading(true);
+        const response = await fetch(`${API_BASE}/meal-plans/${mealPlanId}`);
+        const data = await response.json();
+        
+        if (data.success) {
+            const mealPlan = data.data;
+            const recipesResponse = await fetch(`${API_BASE}/recipes`);
+            const recipesData = await recipesResponse.json();
+            const allRecipes = recipesData.data || [];
+            
+            const content = `
+                <div class="meal-plan-details">
+                    <div class="meal-plan-header">
+                        <h3>${mealPlan.name}</h3>
+                        <p>${new Date(mealPlan.startDate).toLocaleDateString()} - ${new Date(mealPlan.endDate).toLocaleDateString()}</p>
+                    </div>
+                    
+                    <div class="meal-plan-meals">
+                        <h4>Meals</h4>
+                        <div id="meal-list-${mealPlanId}" class="meal-list">
+                            ${renderMealList(mealPlan.meals || [], allRecipes)}
+                        </div>
+                        
+                        <div class="add-meal-section">
+                            <h4>Add Recipe to Meal Plan</h4>
+                            <div class="add-meal-form">
+                                <select id="recipe-select-${mealPlanId}" class="form-select">
+                                    <option value="">Select a recipe...</option>
+                                    ${allRecipes.map(recipe => 
+                                        `<option value="${recipe.id}">${recipe.title}</option>`
+                                    ).join('')}
+                                </select>
+                                <select id="meal-type-${mealPlanId}" class="form-select">
+                                    <option value="breakfast">Breakfast</option>
+                                    <option value="lunch">Lunch</option>
+                                    <option value="dinner">Dinner</option>
+                                    <option value="snack">Snack</option>
+                                </select>
+                                <input type="date" id="meal-date-${mealPlanId}" class="form-input" 
+                                       min="${mealPlan.startDate}" max="${mealPlan.endDate}">
+                                <button class="btn btn-primary" onclick="addMealToPlan(${mealPlanId})">
+                                    <i class="fas fa-plus"></i>
+                                    Add Meal
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            showModal('Meal Plan Details', content);
+        } else {
+            showNotification('Error loading meal plan', 'error');
+        }
+    } catch (error) {
+        console.error('Error loading meal plan:', error);
+        showNotification('Error loading meal plan', 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+// Render meal list
+function renderMealList(meals, allRecipes) {
+    if (!meals || meals.length === 0) {
+        return '<p class="text-muted">No meals added yet.</p>';
+    }
+    
+    // Group meals by date
+    const mealsByDate = {};
+    meals.forEach(meal => {
+        if (!mealsByDate[meal.date]) {
+            mealsByDate[meal.date] = [];
+        }
+        mealsByDate[meal.date].push(meal);
+    });
+    
+    let html = '';
+    Object.keys(mealsByDate).sort().forEach(date => {
+        html += `<div class="meal-date-group">
+            <h5>${new Date(date).toLocaleDateString()}</h5>
+            <div class="meals-for-date">`;
+        
+        mealsByDate[date].forEach(meal => {
+            const recipe = allRecipes.find(r => r.id === meal.recipeId);
+            html += `
+                <div class="meal-item">
+                    <div class="meal-info">
+                        <span class="meal-type">${meal.type}</span>
+                        <span class="meal-recipe">${recipe ? recipe.title : 'Unknown Recipe'}</span>
+                    </div>
+                    <button class="btn-icon" onclick="removeMealFromPlan(${meal.id})">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            `;
+        });
+        
+        html += '</div></div>';
+    });
+    
+    return html;
+}
+
+// Add meal to meal plan
+async function addMealToPlan(mealPlanId) {
+    const recipeSelect = document.getElementById(`recipe-select-${mealPlanId}`);
+    const mealTypeSelect = document.getElementById(`meal-type-${mealPlanId}`);
+    const mealDateInput = document.getElementById(`meal-date-${mealPlanId}`);
+    
+    if (!recipeSelect.value || !mealDateInput.value) {
+        showNotification('Please select a recipe and date', 'warning');
+        return;
+    }
+    
+    try {
+        showLoading(true);
+        const response = await fetch(`${API_BASE}/meal-plans/${mealPlanId}/meals`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                recipeId: parseInt(recipeSelect.value),
+                type: mealTypeSelect.value,
+                date: mealDateInput.value
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showNotification('Meal added successfully!', 'success');
+            closeModal();
+            loadMealPlans();
+        } else {
+            showNotification(data.error || 'Error adding meal', 'error');
+        }
+    } catch (error) {
+        console.error('Error adding meal:', error);
+        showNotification('Error adding meal', 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+// Remove meal from meal plan
+async function removeMealFromPlan(mealId) {
+    if (!confirm('Are you sure you want to remove this meal?')) {
+        return;
+    }
+    
+    try {
+        showLoading(true);
+        // Note: This would need the meal plan ID, but we can find it
+        const response = await fetch(`${API_BASE}/meal-plans/meals/${mealId}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showNotification('Meal removed successfully!', 'success');
+            loadMealPlans();
+        } else {
+            showNotification(data.error || 'Error removing meal', 'error');
+        }
+    } catch (error) {
+        console.error('Error removing meal:', error);
+        showNotification('Error removing meal', 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+// Delete meal plan request
+async function deleteMealPlanRequest(id) {
+    try {
+        showLoading(true);
+        const response = await fetch(`${API_BASE}/meal-plans/${id}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showNotification('Meal plan deleted successfully!', 'success');
+            loadMealPlans();
+        } else {
+            showNotification(data.error || 'Error deleting meal plan', 'error');
+        }
+    } catch (error) {
+        console.error('Error deleting meal plan:', error);
+        showNotification('Error deleting meal plan', 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+// Show edit meal plan modal
+function showEditMealPlanModal(id) {
+    // For now, just show a simple edit form
+    const content = `
+        <form id="edit-meal-plan-form" onsubmit="updateMealPlan(event, ${id})">
+            <div class="form-group">
+                <label class="form-label">Name *</label>
+                <input type="text" class="form-input" name="name" required>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Start Date *</label>
+                    <input type="date" class="form-input" name="startDate" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">End Date *</label>
+                    <input type="date" class="form-input" name="endDate" required>
+                </div>
+            </div>
+            <div class="form-group">
+                <button type="submit" class="btn btn-primary">Update Meal Plan</button>
+                <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+            </div>
+        </form>
+    `;
+    showModal('Edit Meal Plan', content);
+}
+
+// Update meal plan
+async function updateMealPlan(event, id) {
+    event.preventDefault();
+    const formData = new FormData(event.target);
+    
+    const mealPlanData = {
+        name: formData.get('name'),
+        startDate: formData.get('startDate'),
+        endDate: formData.get('endDate')
+    };
+    
+    try {
+        showLoading(true);
+        const response = await fetch(`${API_BASE}/meal-plans/${id}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(mealPlanData)
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showNotification('Meal plan updated successfully!', 'success');
+            closeModal();
+            loadMealPlans();
+        } else {
+            showNotification(data.error || 'Error updating meal plan', 'error');
+        }
+    } catch (error) {
+        console.error('Error updating meal plan:', error);
+        showNotification('Error updating meal plan', 'error');
+    } finally {
+        showLoading(false);
     }
 }
 

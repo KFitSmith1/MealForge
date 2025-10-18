@@ -119,15 +119,24 @@ router.post('/recipes/csv', upload.single('file'), async (req, res) => {
                 .on('error', reject);
         });
 
-        // Save recipes to database (simplified - in real app, use proper database)
+        // Save recipes to database using the existing database system
         const savedRecipes = [];
+        const db = require('../config/database');
+        const Recipe = require('../models/Recipe');
+        
         for (const recipe of recipes) {
             try {
-                // Here you would save to your actual database
-                // For now, we'll simulate success
-                recipe.id = Date.now() + Math.random();
-                recipe.createdAt = new Date();
-                savedRecipes.push(recipe);
+                // Validate recipe data
+                const errors = Recipe.validate(recipe);
+                if (errors.length > 0) {
+                    errors.push(`Failed to save recipe "${recipe.title}": Validation failed - ${errors.join(', ')}`);
+                    continue;
+                }
+                
+                // Save to database
+                const recipeData = db.create('recipes', recipe);
+                const savedRecipe = new Recipe(recipeData);
+                savedRecipes.push(savedRecipe);
             } catch (error) {
                 errors.push(`Failed to save recipe "${recipe.title}": ${error.message}`);
             }
@@ -236,13 +245,24 @@ router.post('/ingredients/csv', upload.single('file'), async (req, res) => {
                 .on('error', reject);
         });
 
-        // Save ingredients to database
+        // Save ingredients to database using the existing database system
         const savedIngredients = [];
+        const db = require('../config/database');
+        const Ingredient = require('../models/Ingredient');
+        
         for (const ingredient of ingredients) {
             try {
-                ingredient.id = Date.now() + Math.random();
-                ingredient.createdAt = new Date();
-                savedIngredients.push(ingredient);
+                // Validate ingredient data
+                const validationErrors = Ingredient.validate(ingredient);
+                if (validationErrors.length > 0) {
+                    errors.push(`Failed to save ingredient "${ingredient.name}": Validation failed - ${validationErrors.join(', ')}`);
+                    continue;
+                }
+                
+                // Save to database
+                const ingredientData = db.create('ingredients', ingredient);
+                const savedIngredient = new Ingredient(ingredientData);
+                savedIngredients.push(savedIngredient);
             } catch (error) {
                 errors.push(`Failed to save ingredient "${ingredient.name}": ${error.message}`);
             }
@@ -294,11 +314,22 @@ router.post('/recipes/pdf', upload.single('file'), async (req, res) => {
         const errors = [];
         const savedRecipes = [];
 
+        const db = require('../config/database');
+        const Recipe = require('../models/Recipe');
+        
         for (const recipe of recipes) {
             try {
-                recipe.id = Date.now() + Math.random();
-                recipe.createdAt = new Date();
-                savedRecipes.push(recipe);
+                // Validate recipe data
+                const validationErrors = Recipe.validate(recipe);
+                if (validationErrors.length > 0) {
+                    errors.push(`Failed to save recipe "${recipe.title}": Validation failed - ${validationErrors.join(', ')}`);
+                    continue;
+                }
+                
+                // Save to database
+                const recipeData = db.create('recipes', recipe);
+                const savedRecipe = new Recipe(recipeData);
+                savedRecipes.push(savedRecipe);
             } catch (error) {
                 errors.push(`Failed to save recipe "${recipe.title}": ${error.message}`);
             }
