@@ -120,6 +120,9 @@ function showSection(sectionName) {
         case 'shopping':
             loadShoppingLists();
             break;
+        case 'batch-upload':
+            initializeBatchUpload();
+            break;
     }
 }
 
@@ -940,4 +943,241 @@ function deleteIngredient(id) {
 
 function printShoppingList() {
     window.print();
+}
+
+// Batch Upload Functions
+function initializeBatchUpload() {
+    setupUploadTabs();
+    setupFileUploads();
+    setupDragAndDrop();
+}
+
+function setupUploadTabs() {
+    const tabs = document.querySelectorAll('.upload-tab');
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            const type = tab.dataset.type;
+            
+            // Update active tab
+            tabs.forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            
+            // Update active section
+            document.querySelectorAll('.upload-section').forEach(section => {
+                section.classList.remove('active');
+            });
+            document.getElementById(`${type}-upload`).classList.add('active');
+        });
+    });
+}
+
+function setupFileUploads() {
+    const fileInputs = document.querySelectorAll('.file-input');
+    fileInputs.forEach(input => {
+        input.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFileUpload(e.target.files[0], input);
+            }
+        });
+    });
+}
+
+function setupDragAndDrop() {
+    const uploadAreas = document.querySelectorAll('.file-upload-area');
+    uploadAreas.forEach(area => {
+        area.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            area.classList.add('dragover');
+        });
+        
+        area.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            area.classList.remove('dragover');
+        });
+        
+        area.addEventListener('drop', (e) => {
+            e.preventDefault();
+            area.classList.remove('dragover');
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                const file = files[0];
+                const type = area.dataset.type;
+                const format = area.dataset.format;
+                
+                // Validate file type
+                if (validateFileType(file, format)) {
+                    handleFileUpload(file, area.querySelector('.file-input'));
+                } else {
+                    showNotification(`Invalid file type. Please upload a ${format.toUpperCase()} file.`, 'error');
+                }
+            }
+        });
+        
+        // Click to upload
+        area.addEventListener('click', () => {
+            area.querySelector('.file-input').click();
+        });
+    });
+}
+
+function validateFileType(file, expectedFormat) {
+    const extension = file.name.split('.').pop().toLowerCase();
+    return extension === expectedFormat;
+}
+
+async function handleFileUpload(file, inputElement) {
+    const type = inputElement.id.split('-')[0]; // recipes or ingredients
+    const format = inputElement.id.split('-')[1]; // csv or pdf
+    
+    try {
+        showUploadProgress();
+        
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        const endpoint = `/api/batch/${type}/${format}`;
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showUploadResults(result.data, type);
+            showNotification(`Successfully uploaded ${result.data.uploaded} ${type}!`, 'success');
+            
+            // Refresh the relevant section
+            if (type === 'recipes') {
+                loadRecipes();
+            } else if (type === 'ingredients') {
+                loadIngredients();
+            }
+        } else {
+            showNotification(result.error || 'Upload failed', 'error');
+        }
+        
+    } catch (error) {
+        console.error('Upload error:', error);
+        showNotification('Upload failed: ' + error.message, 'error');
+    } finally {
+        hideUploadProgress();
+        // Reset file input
+        inputElement.value = '';
+    }
+}
+
+function showUploadProgress() {
+    const progress = document.getElementById('upload-progress');
+    const progressFill = document.getElementById('progress-fill');
+    const progressText = document.getElementById('progress-text');
+    
+    progress.classList.remove('hidden');
+    
+    // Simulate progress
+    let progressValue = 0;
+    const interval = setInterval(() => {
+        progressValue += Math.random() * 15;
+        if (progressValue >= 100) {
+            progressValue = 100;
+            clearInterval(interval);
+        }
+        
+        progressFill.style.width = progressValue + '%';
+        progressText.textContent = Math.round(progressValue) + '%';
+    }, 200);
+}
+
+function hideUploadProgress() {
+    const progress = document.getElementById('upload-progress');
+    progress.classList.add('hidden');
+    
+    // Reset progress
+    const progressFill = document.getElementById('progress-fill');
+    const progressText = document.getElementById('progress-text');
+    progressFill.style.width = '0%';
+    progressText.textContent = '0%';
+}
+
+function showUploadResults(data, type) {
+    const results = document.getElementById('upload-results');
+    const content = document.getElementById('results-content');
+    
+    let html = `
+        <div class="result-summary">
+            <div class="summary-card success">
+                <h4>${data.uploaded}</h4>
+                <p>Successfully Uploaded</p>
+            </div>
+            <div class="summary-card ${data.errors.length > 0 ? 'warning' : 'success'}">
+                <h4>${data.total}</h4>
+                <p>Total Processed</p>
+            </div>
+            ${data.errors.length > 0 ? `
+                <div class="summary-card error">
+                    <h4>${data.errors.length}</h4>
+                    <p>Errors</p>
+                </div>
+            ` : ''}
+        </div>
+    `;
+    
+    if (data.errors.length > 0) {
+        html += '<h4>Errors:</h4>';
+        data.errors.forEach(error => {
+            html += `<div class="result-item error">${error}</div>`;
+        });
+    }
+    
+    if (data[type] && data[type].length > 0) {
+        html += `<h4>Successfully Added ${type.charAt(0).toUpperCase() + type.slice(1)}:</h4>`;
+        data[type].forEach(item => {
+            html += `<div class="result-item success">${item.title || item.name}</div>`;
+        });
+    }
+    
+    content.innerHTML = html;
+    results.classList.remove('hidden');
+}
+
+function closeResults() {
+    const results = document.getElementById('upload-results');
+    results.classList.add('hidden');
+}
+
+function cancelUpload() {
+    hideUploadProgress();
+    showNotification('Upload cancelled', 'warning');
+}
+
+function downloadSample(type) {
+    let csvContent = '';
+    let filename = '';
+    
+    if (type === 'recipes-csv') {
+        csvContent = `title,description,prepTime,cookTime,servings,difficulty,cuisine,ingredients,instructions,tags
+"Spaghetti Carbonara","Classic Italian pasta dish",15,20,4,"medium","Italian","1 lb spaghetti; 4 eggs; 1 cup parmesan; 6 oz pancetta","Cook pasta; Fry pancetta; Mix eggs and cheese; Combine all","pasta,italian,comfort food"
+"Chicken Stir Fry","Quick and healthy Asian dish",10,15,3,"easy","Asian","1 lb chicken breast; 2 bell peppers; 1 onion; 2 tbsp soy sauce","Cut chicken; Heat oil; Cook chicken; Add vegetables; Season","chicken,asian,healthy"
+"Chocolate Chip Cookies","Soft and chewy homemade cookies",15,12,24,"easy","American","2 cups flour; 1 cup butter; 1 cup sugar; 1 cup chocolate chips","Mix dry ingredients; Cream butter and sugar; Combine; Bake","dessert,cookies,homemade"`;
+        filename = 'sample-recipes.csv';
+    } else if (type === 'ingredients-csv') {
+        csvContent = `name,category,storage,unit,price,notes
+"Chicken Breast","Meat","fridge","lb",4.99,"Fresh, boneless"
+"Bell Peppers","Vegetables","fridge","piece",1.50,"Mixed colors"
+"Onion","Vegetables","pantry","piece",0.75,"Yellow onion"
+"Olive Oil","Oils","pantry","bottle",8.99,"Extra virgin"
+"Garlic","Vegetables","pantry","clove",0.25,"Fresh cloves"`;
+        filename = 'sample-ingredients.csv';
+    }
+    
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
 }

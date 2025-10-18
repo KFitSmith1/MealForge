@@ -55,6 +55,10 @@
                     <i class="fas fa-shopping-bag"></i>
                     <span>Shopping</span>
                 </button>
+                <button class="nav-item" data-section="batch-upload">
+                    <i class="fas fa-upload"></i>
+                    <span>Batch Upload</span>
+                </button>
             </nav>
         </aside>
 
@@ -228,6 +232,125 @@
 
                 <div id="shopping-lists" class="shopping-lists">
                     <!-- Shopping lists will be loaded here -->
+                </div>
+            </section>
+
+            <!-- Batch Upload Section -->
+            <section id="batch-upload" class="content-section">
+                <div class="page-header">
+                    <div class="page-title">
+                        <h1>Batch Upload</h1>
+                        <p>Upload multiple recipes or ingredients from CSV or PDF files</p>
+                    </div>
+                </div>
+
+                <div class="upload-container">
+                    <div class="upload-tabs">
+                        <button class="upload-tab active" data-type="recipes">
+                            <i class="fas fa-book-open"></i>
+                            <span>Recipes</span>
+                        </button>
+                        <button class="upload-tab" data-type="ingredients">
+                            <i class="fas fa-apple-whole"></i>
+                            <span>Ingredients</span>
+                        </button>
+                    </div>
+
+                    <div class="upload-content">
+                        <!-- Recipe Upload -->
+                        <div id="recipes-upload" class="upload-section active">
+                            <div class="upload-options">
+                                <div class="upload-option">
+                                    <h3>CSV Upload</h3>
+                                    <p>Upload recipes from a CSV file with columns: title, description, prepTime, cookTime, servings, difficulty, cuisine, ingredients, instructions, tags</p>
+                                    <div class="file-upload-area" data-type="recipes" data-format="csv">
+                                        <div class="upload-icon">
+                                            <i class="fas fa-file-csv"></i>
+                                        </div>
+                                        <div class="upload-text">
+                                            <p>Drag & drop your CSV file here</p>
+                                            <p>or <span class="upload-link">click to browse</span></p>
+                                        </div>
+                                        <input type="file" accept=".csv" class="file-input" id="recipes-csv-input">
+                                    </div>
+                                    <div class="upload-sample">
+                                        <button class="btn btn-secondary" onclick="downloadSample('recipes-csv')">
+                                            <i class="fas fa-download"></i>
+                                            Download Sample CSV
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="upload-option">
+                                    <h3>PDF Upload</h3>
+                                    <p>Upload recipes from a PDF file. The system will automatically extract recipe information from the text.</p>
+                                    <div class="file-upload-area" data-type="recipes" data-format="pdf">
+                                        <div class="upload-icon">
+                                            <i class="fas fa-file-pdf"></i>
+                                        </div>
+                                        <div class="upload-text">
+                                            <p>Drag & drop your PDF file here</p>
+                                            <p>or <span class="upload-link">click to browse</span></p>
+                                        </div>
+                                        <input type="file" accept=".pdf" class="file-input" id="recipes-pdf-input">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Ingredient Upload -->
+                        <div id="ingredients-upload" class="upload-section">
+                            <div class="upload-options">
+                                <div class="upload-option">
+                                    <h3>CSV Upload</h3>
+                                    <p>Upload ingredients from a CSV file with columns: name, category, storage, unit, price, notes</p>
+                                    <div class="file-upload-area" data-type="ingredients" data-format="csv">
+                                        <div class="upload-icon">
+                                            <i class="fas fa-file-csv"></i>
+                                        </div>
+                                        <div class="upload-text">
+                                            <p>Drag & drop your CSV file here</p>
+                                            <p>or <span class="upload-link">click to browse</span></p>
+                                        </div>
+                                        <input type="file" accept=".csv" class="file-input" id="ingredients-csv-input">
+                                    </div>
+                                    <div class="upload-sample">
+                                        <button class="btn btn-secondary" onclick="downloadSample('ingredients-csv')">
+                                            <i class="fas fa-download"></i>
+                                            Download Sample CSV
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Upload Progress -->
+                    <div id="upload-progress" class="upload-progress hidden">
+                        <div class="progress-header">
+                            <h3>Uploading Files...</h3>
+                            <button class="btn-icon" onclick="cancelUpload()">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="progress-fill"></div>
+                        </div>
+                        <div class="progress-text" id="progress-text">0%</div>
+                    </div>
+
+                    <!-- Upload Results -->
+                    <div id="upload-results" class="upload-results hidden">
+                        <div class="results-header">
+                            <h3>Upload Results</h3>
+                            <button class="btn-icon" onclick="closeResults()">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <div class="results-content" id="results-content">
+                            <!-- Results will be populated here -->
+                        </div>
+                    </div>
                 </div>
             </section>
         </main>

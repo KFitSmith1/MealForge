@@ -15,6 +15,7 @@ app.use(express.static('public'));
 app.use('/api/recipes', require('./routes/recipes'));
 app.use('/api/meal-plans', require('./routes/mealPlans'));
 app.use('/api/ingredients', require('./routes/ingredients'));
+app.use('/api/batch', require('./routes/batchUpload'));
 
 // Serve static files
 app.get('/', (req, res) => {
