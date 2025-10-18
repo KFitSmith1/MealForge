@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mealforge - Smart Meal Planning</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Navigation -->
+        <nav class="navbar">
+            <div class="nav-container">
+                <div class="nav-brand">
+                    <i class="fas fa-utensils"></i>
+                    <span>Mealforge</span>
+                </div>
+                <div class="nav-menu">
+                    <button class="nav-item active" data-section="dashboard">
+                        <i class="fas fa-home"></i>
+                        <span>Dashboard</span>
+                    </button>
+                    <button class="nav-item" data-section="recipes">
+                        <i class="fas fa-book"></i>
+                        <span>Recipes</span>
+                    </button>
+                    <button class="nav-item" data-section="meal-plans">
+                        <i class="fas fa-calendar-alt"></i>
+                        <span>Meal Plans</span>
+                    </button>
+                    <button class="nav-item" data-section="ingredients">
+                        <i class="fas fa-carrot"></i>
+                        <span>Ingredients</span>
+                    </button>
+                    <button class="nav-item" data-section="shopping">
+                        <i class="fas fa-shopping-cart"></i>
+                        <span>Shopping</span>
+                    </button>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Dashboard Section -->
+            <section id="dashboard" class="content-section active">
+                <div class="section-header">
+                    <h1>Dashboard</h1>
+                    <p>Welcome to your meal planning hub</p>
+                </div>
+                
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-book"></i>
+                        </div>
+                        <div class="stat-content">
+                            <h3 id="recipe-count">0</h3>
+                            <p>Recipes</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-calendar-alt"></i>
+                        </div>
+                        <div class="stat-content">
+                            <h3 id="meal-plan-count">0</h3>
+                            <p>Meal Plans</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-carrot"></i>
+                        </div>
+                        <div class="stat-content">
+                            <h3 id="ingredient-count">0</h3>
+                            <p>Ingredients</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                        <div class="stat-content">
+                            <h3 id="avg-cook-time">0</h3>
+                            <p>Avg Cook Time</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="quick-actions">
+                    <h2>Quick Actions</h2>
+                    <div class="action-buttons">
+                        <button class="action-btn" onclick="showSection('recipes')">
+                            <i class="fas fa-plus"></i>
+                            <span>Add Recipe</span>
+                        </button>
+                        <button class="action-btn" onclick="showSection('meal-plans')">
+                            <i class="fas fa-calendar-plus"></i>
+                            <span>Create Meal Plan</span>
+                        </button>
+                        <button class="action-btn" onclick="showSection('ingredients')">
+                            <i class="fas fa-carrot"></i>
+                            <span>Add Ingredient</span>
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Recipes Section -->
+            <section id="recipes" class="content-section">
+                <div class="section-header">
+                    <h1>Recipes</h1>
+                    <button class="btn btn-primary" onclick="showAddRecipeModal()">
+                        <i class="fas fa-plus"></i>
+                        Add Recipe
+                    </button>
+                </div>
+
+                <div class="filters">
+                    <input type="text" id="recipe-search" placeholder="Search recipes..." class="search-input">
+                    <select id="difficulty-filter" class="filter-select">
+                        <option value="">All Difficulties</option>
+                        <option value="easy">Easy</option>
+                        <option value="medium">Medium</option>
+                        <option value="hard">Hard</option>
+                    </select>
+                    <select id="cuisine-filter" class="filter-select">
+                        <option value="">All Cuisines</option>
+                    </select>
+                    <button class="btn btn-secondary" onclick="applyRecipeFilters()">
+                        <i class="fas fa-filter"></i>
+                        Filter
+                    </button>
+                </div>
+
+                <div id="recipes-grid" class="recipes-grid">
+                    <!-- Recipes will be loaded here -->
+                </div>
+            </section>
+
+            <!-- Meal Plans Section -->
+            <section id="meal-plans" class="content-section">
+                <div class="section-header">
+                    <h1>Meal Plans</h1>
+                    <button class="btn btn-primary" onclick="showAddMealPlanModal()">
+                        <i class="fas fa-plus"></i>
+                        Create Meal Plan
+                    </button>
+                </div>
+
+                <div id="meal-plans-list" class="meal-plans-list">
+                    <!-- Meal plans will be loaded here -->
+                </div>
+            </section>
+
+            <!-- Ingredients Section -->
+            <section id="ingredients" class="content-section">
+                <div class="section-header">
+                    <h1>Ingredients</h1>
+                    <button class="btn btn-primary" onclick="showAddIngredientModal()">
+                        <i class="fas fa-plus"></i>
+                        Add Ingredient
+                    </button>
+                </div>
+
+                <div class="filters">
+                    <input type="text" id="ingredient-search" placeholder="Search ingredients..." class="search-input">
+                    <select id="category-filter" class="filter-select">
+                        <option value="">All Categories</option>
+                    </select>
+                    <select id="storage-filter" class="filter-select">
+                        <option value="">All Storage</option>
+                        <option value="pantry">Pantry</option>
+                        <option value="fridge">Fridge</option>
+                        <option value="freezer">Freezer</option>
+                    </select>
+                    <button class="btn btn-secondary" onclick="applyIngredientFilters()">
+                        <i class="fas fa-filter"></i>
+                        Filter
+                    </button>
+                </div>
+
+                <div id="ingredients-grid" class="ingredients-grid">
+                    <!-- Ingredients will be loaded here -->
+                </div>
+            </section>
+
+            <!-- Shopping Section -->
+            <section id="shopping" class="content-section">
+                <div class="section-header">
+                    <h1>Shopping Lists</h1>
+                    <p>Generate shopping lists from your meal plans</p>
+                </div>
+
+                <div id="shopping-lists" class="shopping-lists">
+                    <!-- Shopping lists will be loaded here -->
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Modals -->
+    <div id="modal-overlay" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 id="modal-title">Modal Title</h2>
+                <button class="modal-close" onclick="closeModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body" id="modal-body">
+                <!-- Modal content will be loaded here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Spinner -->
+    <div id="loading" class="loading">
+        <div class="spinner"></div>
+        <p>Loading...</p>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
