@@ -1,0 +1,17 @@
+node_modules
+.env
+.env.local
+.env.production
+uploads
+*.log
+.DS_Store
+Thumbs.db
+*.zip
+*.bat
+scripts
+data
+sample-*.csv
+VERCEL_DEPLOYMENT.md
+INSTALLATION.md
+QUICK_UPLOAD_GUIDE.md
+UPLOAD_TO_GITHUB.md

@@ -2,24 +2,11 @@ const express = require('express');
 const multer = require('multer');
 const pdfParse = require('pdf-parse');
 const csv = require('csv-parser');
-const fs = require('fs');
 const path = require('path');
 const router = express.Router();
 
-// Configure multer for file uploads
-const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        const uploadDir = path.join(__dirname, '../uploads');
-        if (!fs.existsSync(uploadDir)) {
-            fs.mkdirSync(uploadDir, { recursive: true });
-        }
-        cb(null, uploadDir);
-    },
-    filename: function (req, file, cb) {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
-    }
-});
+// Configure multer for file uploads - use memory storage for Vercel
+const storage = multer.memoryStorage();
 
 const upload = multer({ 
     storage: storage,
@@ -51,12 +38,13 @@ router.post('/recipes/csv', upload.single('file'), async (req, res) => {
         const recipes = [];
         const errors = [];
 
-        // Parse CSV file
+        // Parse CSV file from memory buffer
         await new Promise((resolve, reject) => {
             let rowCount = 0;
             let headerRow = null;
             
-            fs.createReadStream(req.file.path)
+            const csvStream = require('stream').Readable.from(req.file.buffer.toString());
+            csvStream
                 .pipe(csv())
                 .on('data', (row) => {
                     try {
@@ -90,18 +78,62 @@ router.post('/recipes/csv', upload.single('file'), async (req, res) => {
                         // If we can't find description, use a default
                         const finalDescription = description || 'No description provided';
 
+                        // Parse ingredients from various possible columns
+                        const mainIngredients = findColumnValue(row, ['Main Ingredients', 'ingredients', 'ingredient', 'ingredient_list', 'items', 'Ingredients']);
+                        const ingredients = mainIngredients ? 
+                            mainIngredients.split(',').map(ing => {
+                                const trimmed = ing.trim();
+                                // Try to parse amount and unit from the ingredient string
+                                const parts = trimmed.split(' ');
+                                if (parts.length >= 2 && !isNaN(parts[0])) {
+                                    return {
+                                        amount: parts[0],
+                                        unit: parts[1],
+                                        name: parts.slice(2).join(' ')
+                                    };
+                                } else {
+                                    return {
+                                        amount: '1',
+                                        unit: 'serving',
+                                        name: trimmed
+                                    };
+                                }
+                            }) : [];
+
+                        // Create basic instructions if none provided
+                        const instructions = parseInstructionsFromRow(row);
+                        if (instructions.length === 0) {
+                            instructions.push('Follow recipe instructions for ' + finalTitle);
+                        }
+
+                        // Parse prep and cook times, handling "15 min" format
+                        const prepTimeText = findColumnValue(row, ['prepTime', 'prep_time', 'preparation time', 'prep', 'Prep Time']);
+                        const cookTimeText = findColumnValue(row, ['cookTime', 'cook_time', 'cooking time', 'cook', 'Cook Time']);
+                        
+                        const prepTime = prepTimeText ? parseInt(prepTimeText.toString().replace(/[^\d]/g, '')) || 15 : 15;
+                        const cookTime = cookTimeText ? parseInt(cookTimeText.toString().replace(/[^\d]/g, '')) || 15 : 15;
+
                         const recipe = {
                             title: finalTitle.toString().trim(),
                             description: finalDescription.toString().trim(),
-                            prepTime: parseInt(findColumnValue(row, ['prepTime', 'prep_time', 'preparation time', 'prep'])) || 0,
-                            cookTime: parseInt(findColumnValue(row, ['cookTime', 'cook_time', 'cooking time', 'cook'])) || 0,
-                            servings: parseInt(findColumnValue(row, ['servings', 'serves', 'portions'])) || 1,
+                            prepTime: prepTime,
+                            cookTime: cookTime,
+                            servings: parseInt(findColumnValue(row, ['servings', 'serves', 'portions', 'Servings'])) || 1,
                             difficulty: findColumnValue(row, ['difficulty', 'level', 'skill']) || 'easy',
-                            cuisine: findColumnValue(row, ['cuisine', 'type', 'style']) || 'International',
-                            ingredients: parseIngredientsFromRow(row),
-                            instructions: parseInstructionsFromRow(row),
-                            tags: parseTagsFromRow(row)
+                            cuisine: findColumnValue(row, ['cuisine', 'type', 'style', 'Category']) || 'International',
+                            ingredients: ingredients,
+                            instructions: instructions,
+                            tags: parseTagsFromRow(row),
+                            nutrition: {
+                                calories: parseInt(findColumnValue(row, ['Calories', 'calories'])) || 0,
+                                fiber: parseInt(findColumnValue(row, ['Fiber (g)', 'fiber'])) || 0,
+                                fat: parseInt(findColumnValue(row, ['Fat (g)', 'fat'])) || 0,
+                                protein: parseInt(findColumnValue(row, ['Protein (g)', 'protein'])) || 0
+                            }
                         };
+
+                        console.log(`Recipe "${recipe.title}" parsed ingredients:`, ingredients);
+                        console.log(`Recipe "${recipe.title}" parsed instructions:`, instructions);
 
                         recipes.push(recipe);
                     } catch (error) {
@@ -126,24 +158,27 @@ router.post('/recipes/csv', upload.single('file'), async (req, res) => {
         
         for (const recipe of recipes) {
             try {
-                // Validate recipe data
-                const errors = Recipe.validate(recipe);
-                if (errors.length > 0) {
-                    errors.push(`Failed to save recipe "${recipe.title}": Validation failed - ${errors.join(', ')}`);
+                console.log(`Processing recipe: ${recipe.title}`);
+                
+                // Use flexible validation for batch uploads
+                const validationErrors = validateRecipeForBatchUpload(recipe);
+                if (validationErrors.length > 0) {
+                    console.log(`Validation errors for ${recipe.title}:`, validationErrors);
+                    errors.push(`Failed to save recipe "${recipe.title}": ${validationErrors.join(', ')}`);
                     continue;
                 }
                 
                 // Save to database
+                console.log(`Saving recipe to database: ${recipe.title}`);
                 const recipeData = db.create('recipes', recipe);
                 const savedRecipe = new Recipe(recipeData);
                 savedRecipes.push(savedRecipe);
+                console.log(`Successfully saved recipe: ${recipe.title} with ID: ${recipeData.id}`);
             } catch (error) {
+                console.error(`Error saving recipe ${recipe.title}:`, error);
                 errors.push(`Failed to save recipe "${recipe.title}": ${error.message}`);
             }
         }
-
-        // Clean up uploaded file
-        fs.unlinkSync(req.file.path);
 
         res.json({
             success: true,
@@ -157,11 +192,6 @@ router.post('/recipes/csv', upload.single('file'), async (req, res) => {
 
     } catch (error) {
         console.error('CSV upload error:', error);
-        
-        // Clean up file if it exists
-        if (req.file && fs.existsSync(req.file.path)) {
-            fs.unlinkSync(req.file.path);
-        }
 
         res.status(500).json({
             success: false,
@@ -183,12 +213,13 @@ router.post('/ingredients/csv', upload.single('file'), async (req, res) => {
         const ingredients = [];
         const errors = [];
 
-        // Parse CSV file
+        // Parse CSV file from memory buffer
         await new Promise((resolve, reject) => {
             let rowCount = 0;
             let headerRow = null;
             
-            fs.createReadStream(req.file.path)
+            const csvStream = require('stream').Readable.from(req.file.buffer.toString());
+            csvStream
                 .pipe(csv())
                 .on('data', (row) => {
                     try {
@@ -268,9 +299,6 @@ router.post('/ingredients/csv', upload.single('file'), async (req, res) => {
             }
         }
 
-        // Clean up uploaded file
-        fs.unlinkSync(req.file.path);
-
         res.json({
             success: true,
             data: {
@@ -283,10 +311,6 @@ router.post('/ingredients/csv', upload.single('file'), async (req, res) => {
 
     } catch (error) {
         console.error('CSV upload error:', error);
-        
-        if (req.file && fs.existsSync(req.file.path)) {
-            fs.unlinkSync(req.file.path);
-        }
 
         res.status(500).json({
             success: false,
@@ -305,8 +329,8 @@ router.post('/recipes/pdf', upload.single('file'), async (req, res) => {
             });
         }
 
-        // Parse PDF file
-        const dataBuffer = fs.readFileSync(req.file.path);
+        // Parse PDF file from memory buffer
+        const dataBuffer = req.file.buffer;
         const pdfData = await pdfParse(dataBuffer);
         
         // Extract recipes from PDF text
@@ -335,9 +359,6 @@ router.post('/recipes/pdf', upload.single('file'), async (req, res) => {
             }
         }
 
-        // Clean up uploaded file
-        fs.unlinkSync(req.file.path);
-
         res.json({
             success: true,
             data: {
@@ -350,10 +371,6 @@ router.post('/recipes/pdf', upload.single('file'), async (req, res) => {
 
     } catch (error) {
         console.error('PDF upload error:', error);
-        
-        if (req.file && fs.existsSync(req.file.path)) {
-            fs.unlinkSync(req.file.path);
-        }
 
         res.status(500).json({
             success: false,
@@ -361,6 +378,43 @@ router.post('/recipes/pdf', upload.single('file'), async (req, res) => {
         });
     }
 });
+
+// Flexible validation for batch uploads
+function validateRecipeForBatchUpload(recipe) {
+    const errors = [];
+    
+    if (!recipe.title || recipe.title.trim().length === 0) {
+        errors.push('Title is required');
+    }
+    
+    if (!recipe.ingredients || !Array.isArray(recipe.ingredients) || recipe.ingredients.length === 0) {
+        errors.push('At least one ingredient is required');
+    }
+    
+    // Instructions are optional for batch uploads - we'll create a default one
+    if (!recipe.instructions || !Array.isArray(recipe.instructions) || recipe.instructions.length === 0) {
+        recipe.instructions = ['Follow recipe instructions for ' + recipe.title];
+    }
+    
+    if (recipe.prepTime && (isNaN(recipe.prepTime) || recipe.prepTime < 0)) {
+        errors.push('Prep time must be a positive number');
+    }
+    
+    if (recipe.cookTime && (isNaN(recipe.cookTime) || recipe.cookTime < 0)) {
+        errors.push('Cook time must be a positive number');
+    }
+    
+    if (recipe.servings && (isNaN(recipe.servings) || recipe.servings <= 0)) {
+        errors.push('Servings must be a positive number');
+    }
+    
+    const validDifficulties = ['easy', 'medium', 'hard'];
+    if (recipe.difficulty && !validDifficulties.includes(recipe.difficulty)) {
+        errors.push('Difficulty must be easy, medium, or hard');
+    }
+    
+    return errors;
+}
 
 // Helper function to find column value with flexible matching
 function findColumnValue(row, possibleNames) {
@@ -409,13 +463,24 @@ function parseIngredientsFromRow(row) {
 
 // Helper function to parse instructions from CSV row
 function parseInstructionsFromRow(row) {
-    const instructionsText = findColumnValue(row, ['instructions', 'instruction', 'steps', 'directions', 'method']);
+    const instructionsText = findColumnValue(row, ['instructions', 'instruction', 'steps', 'directions', 'method', 'Instructions']);
     if (!instructionsText) return [];
     
-    return instructionsText.split(/[;,\n]/).map(inst => {
-        const trimmed = inst.trim();
+    // Split by numbered steps (1., 2., etc.) or by periods followed by numbers
+    const steps = instructionsText.split(/(?=\d+\.)/).map(step => {
+        const trimmed = step.trim();
         return trimmed ? trimmed.replace(/^\d+\.\s*/, '') : null;
     }).filter(Boolean);
+    
+    // If no numbered steps found, split by periods
+    if (steps.length <= 1) {
+        return instructionsText.split(/\.\s+(?=\d+\.)/).map(inst => {
+            const trimmed = inst.trim();
+            return trimmed ? trimmed.replace(/^\d+\.\s*/, '') : null;
+        }).filter(Boolean);
+    }
+    
+    return steps;
 }
 
 // Helper function to parse tags from CSV row
@@ -518,4 +583,3 @@ function parseInstructions(text) {
 }
 
 module.exports = router;
-

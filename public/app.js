@@ -601,6 +601,330 @@ function showAddMealPlanModal() {
     showModal('Create Meal Plan', content);
 }
 
+// Show automatic meal plan generator
+function showAutoMealPlanGenerator() {
+    const content = `
+        <div class="auto-meal-plan-generator">
+            <div class="generator-intro">
+                <h3>🎯 Auto-Generate Your Perfect Meal Plan</h3>
+                <p>Tell us your preferences and we'll create a personalized meal plan just for you!</p>
+            </div>
+            
+            <form id="auto-meal-plan-form" onsubmit="generateAutoMealPlan(event)">
+                <div class="preferences-section">
+                    <h4>Your Preferences</h4>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Diet Preferences</label>
+                        <div class="checkbox-group">
+                            <label class="checkbox-item">
+                                <input type="checkbox" name="diet" value="vegetarian">
+                                <span class="checkmark"></span>
+                                Vegetarian
+                            </label>
+                            <label class="checkbox-item">
+                                <input type="checkbox" name="diet" value="vegan">
+                                <span class="checkmark"></span>
+                                Vegan
+                            </label>
+                            <label class="checkbox-item">
+                                <input type="checkbox" name="diet" value="gluten-free">
+                                <span class="checkmark"></span>
+                                Gluten-Free
+                            </label>
+                            <label class="checkbox-item">
+                                <input type="checkbox" name="diet" value="dairy-free">
+                                <span class="checkmark"></span>
+                                Dairy-Free
+                            </label>
+                            <label class="checkbox-item">
+                                <input type="checkbox" name="diet" value="keto">
+                                <span class="checkmark"></span>
+                                Keto
+                            </label>
+                            <label class="checkbox-item">
+                                <input type="checkbox" name="diet" value="paleo">
+                                <span class="checkmark"></span>
+                                Paleo
+                            </label>
+                            <label class="checkbox-item">
+                                <input type="checkbox" name="diet" value="low-carb">
+                                <span class="checkmark"></span>
+                                Low-Carb
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="goal" class="form-label">Goal</label>
+                        <select id="goal" class="form-select" required>
+                            <option value="">Select your goal...</option>
+                            <option value="lose-weight">Lose Weight</option>
+                            <option value="gain-weight">Gain Weight</option>
+                            <option value="maintenance">Maintenance</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="daily-calories" class="form-label">Daily Calorie Target</label>
+                        <input type="number" id="daily-calories" class="form-input" min="800" max="4000" step="50" required>
+                        <small class="form-help">Recommended: 1200-2000 calories per day</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="meals-per-day" class="form-label">Meals Per Day</label>
+                        <select id="meals-per-day" class="form-select" required>
+                            <option value="">Select meals per day...</option>
+                            <option value="3">3 meals (Breakfast, Lunch, Dinner)</option>
+                            <option value="4">4 meals (+ Snack)</option>
+                            <option value="5">5 meals (+ 2 Snacks)</option>
+                            <option value="6">6 meals (Small frequent meals)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="number-of-days" class="form-label">Number of Days</label>
+                        <select id="number-of-days" class="form-select" required>
+                            <option value="">Select duration...</option>
+                            <option value="3">3 days</option>
+                            <option value="5">5 days</option>
+                            <option value="7">7 days (1 week)</option>
+                            <option value="14">14 days (2 weeks)</option>
+                            <option value="30">30 days (1 month)</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-magic"></i>
+                        Generate Meal Plan
+                    </button>
+                    <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                </div>
+            </form>
+        </div>
+    `;
+    showModal('Auto-Generate Meal Plan', content);
+}
+
+// Generate automatic meal plan
+async function generateAutoMealPlan(event) {
+    event.preventDefault();
+    
+    try {
+        showLoading(true);
+        
+        // Get form data
+        const formData = new FormData(event.target);
+        const dietPreferences = Array.from(document.querySelectorAll('input[name="diet"]:checked')).map(cb => cb.value);
+        const goal = document.getElementById('goal').value;
+        const dailyCalories = parseInt(document.getElementById('daily-calories').value);
+        const mealsPerDay = parseInt(document.getElementById('meals-per-day').value);
+        const numberOfDays = parseInt(document.getElementById('number-of-days').value);
+        
+        // Validate inputs
+        if (!goal || !dailyCalories || !mealsPerDay || !numberOfDays) {
+            showNotification('Please fill in all required fields', 'error');
+            return;
+        }
+        
+        // Generate meal plan name
+        const mealPlanName = `Auto-Generated ${goal.replace('-', ' ')} Plan (${numberOfDays} days)`;
+        
+        // Calculate calories per meal
+        const caloriesPerMeal = Math.round(dailyCalories / mealsPerDay);
+        
+        // Get available recipes
+        const recipesResponse = await fetch(`${API_BASE}/recipes`);
+        const recipesData = await recipesResponse.json();
+        const availableRecipes = recipesData.data || [];
+        
+        if (availableRecipes.length === 0) {
+            showNotification('No recipes available. Please add some recipes first.', 'error');
+            return;
+        }
+        
+        // Filter recipes based on diet preferences
+        let filteredRecipes = availableRecipes;
+        
+        if (dietPreferences.length > 0) {
+            filteredRecipes = availableRecipes.filter(recipe => {
+                const recipeTags = (recipe.tags || []).map(tag => tag.toLowerCase());
+                return dietPreferences.some(pref => recipeTags.includes(pref.toLowerCase()));
+            });
+        }
+        
+        // If no recipes match diet preferences, use all recipes
+        if (filteredRecipes.length === 0) {
+            filteredRecipes = availableRecipes;
+            showNotification('No recipes match your diet preferences. Using all available recipes.', 'warning');
+        }
+        
+        // Generate meal plan
+        const generatedMealPlan = await generateMealPlanAlgorithm({
+            recipes: filteredRecipes,
+            numberOfDays,
+            mealsPerDay,
+            caloriesPerMeal,
+            goal,
+            dietPreferences
+        });
+        
+        // Create the meal plan
+        const mealPlanData = {
+            name: mealPlanName,
+            startDate: new Date().toISOString().split('T')[0],
+            endDate: new Date(Date.now() + numberOfDays * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+            meals: generatedMealPlan.meals,
+            preferences: {
+                diet: dietPreferences,
+                goal: goal,
+                dailyCalories: dailyCalories,
+                mealsPerDay: mealsPerDay
+            }
+        };
+        
+        // Save meal plan
+        const response = await fetch(`${API_BASE}/meal-plans`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(mealPlanData)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showNotification(`Successfully generated ${numberOfDays}-day meal plan!`, 'success');
+            closeModal();
+            loadMealPlans();
+        } else {
+            showNotification(result.error || 'Failed to generate meal plan', 'error');
+        }
+        
+    } catch (error) {
+        console.error('Error generating meal plan:', error);
+        showNotification('Error generating meal plan: ' + error.message, 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+// Meal plan generation algorithm
+async function generateMealPlanAlgorithm({ recipes, numberOfDays, mealsPerDay, caloriesPerMeal, goal, dietPreferences }) {
+    const meals = [];
+    const mealTypes = ['Breakfast', 'Lunch', 'Dinner', 'Snack', 'Snack 2', 'Snack 3'];
+    
+    // Better calorie distribution for realistic meal plans
+    let calorieTargets = {};
+    if (mealsPerDay === 3) {
+        calorieTargets = { 'Breakfast': 400, 'Lunch': 500, 'Dinner': 500 };
+    } else if (mealsPerDay === 4) {
+        calorieTargets = { 'Breakfast': 400, 'Lunch': 450, 'Dinner': 450, 'Snack': 200 };
+    } else if (mealsPerDay === 5) {
+        calorieTargets = { 'Breakfast': 350, 'Lunch': 400, 'Dinner': 400, 'Snack': 150, 'Snack 2': 150 };
+    } else {
+        calorieTargets = { 'Breakfast': 300, 'Lunch': 350, 'Dinner': 350, 'Snack': 120, 'Snack 2': 120, 'Snack 3': 120 };
+    }
+    
+    // Adjust targets based on daily calorie goal
+    const totalTargetCalories = Object.values(calorieTargets).reduce((sum, cal) => sum + cal, 0);
+    const scaleFactor = caloriesPerMeal * mealsPerDay / totalTargetCalories;
+    
+    Object.keys(calorieTargets).forEach(mealType => {
+        calorieTargets[mealType] = Math.round(calorieTargets[mealType] * scaleFactor);
+    });
+    
+    // Create a pool of recipes for each meal type
+    const mealTypeRecipes = {
+        'Breakfast': recipes.filter(r => r.cuisine?.toLowerCase().includes('breakfast') || 
+                                        r.title?.toLowerCase().includes('breakfast') || 
+                                        r.title?.toLowerCase().includes('oat') ||
+                                        r.title?.toLowerCase().includes('pancake') ||
+                                        r.title?.toLowerCase().includes('bowl')),
+        'Lunch': recipes.filter(r => r.title?.toLowerCase().includes('salad') || 
+                                   r.title?.toLowerCase().includes('sandwich') ||
+                                   r.title?.toLowerCase().includes('bowl') ||
+                                   r.title?.toLowerCase().includes('soup')),
+        'Dinner': recipes.filter(r => r.title?.toLowerCase().includes('curry') || 
+                                    r.title?.toLowerCase().includes('stir') ||
+                                    r.title?.toLowerCase().includes('soup') ||
+                                    r.title?.toLowerCase().includes('bowl')),
+        'Snack': recipes.filter(r => r.title?.toLowerCase().includes('quesadilla') ||
+                                   r.title?.toLowerCase().includes('scramble'))
+    };
+    
+    // If no specific meal type recipes, use all recipes
+    Object.keys(mealTypeRecipes).forEach(mealType => {
+        if (mealTypeRecipes[mealType].length === 0) {
+            mealTypeRecipes[mealType] = recipes;
+        }
+    });
+    
+    for (let day = 1; day <= numberOfDays; day++) {
+        const dayMeals = [];
+        const usedRecipes = new Set(); // Avoid repeating recipes in the same day
+        
+        for (let mealIndex = 0; mealIndex < mealsPerDay; mealIndex++) {
+            const mealType = mealTypes[mealIndex] || 'Meal';
+            const targetCalories = calorieTargets[mealType] || 300;
+            
+            // Get available recipes for this meal type
+            const availableRecipes = mealTypeRecipes[mealType] || recipes;
+            
+            // Filter out recipes already used today
+            const unusedRecipes = availableRecipes.filter(recipe => !usedRecipes.has(recipe.id));
+            
+            // Find suitable recipes within calorie range
+            const suitableRecipes = unusedRecipes.filter(recipe => {
+                const recipeCalories = recipe.nutrition?.calories || 0;
+                const calorieDiff = Math.abs(recipeCalories - targetCalories);
+                return calorieDiff <= targetCalories * 0.4; // Within 40% of target
+            });
+            
+            // Select recipe
+            let selectedRecipe;
+            if (suitableRecipes.length > 0) {
+                selectedRecipe = suitableRecipes[Math.floor(Math.random() * suitableRecipes.length)];
+            } else if (unusedRecipes.length > 0) {
+                // Use closest calorie match from unused recipes
+                selectedRecipe = unusedRecipes.reduce((closest, recipe) => {
+                    const recipeCalories = recipe.nutrition?.calories || 0;
+                    const closestCalories = closest.nutrition?.calories || 0;
+                    const recipeDiff = Math.abs(recipeCalories - targetCalories);
+                    const closestDiff = Math.abs(closestCalories - targetCalories);
+                    return recipeDiff < closestDiff ? recipe : closest;
+                });
+            } else {
+                // Fallback to any recipe
+                selectedRecipe = recipes[Math.floor(Math.random() * recipes.length)];
+            }
+            
+            // Add to used recipes for this day
+            usedRecipes.add(selectedRecipe.id);
+            
+            dayMeals.push({
+                day: day,
+                mealType: mealType.toLowerCase(),
+                recipeId: selectedRecipe.id,
+                recipeName: selectedRecipe.title,
+                description: selectedRecipe.description || '',
+                calories: selectedRecipe.nutrition?.calories || 0,
+                protein: selectedRecipe.nutrition?.protein || 0,
+                carbs: selectedRecipe.nutrition?.carbs || 0,
+                fat: selectedRecipe.nutrition?.fat || 0,
+                fiber: selectedRecipe.nutrition?.fiber || 0
+            });
+        }
+        
+        meals.push(...dayMeals);
+    }
+    
+    return { meals };
+}
+
 // Submit meal plan
 async function submitMealPlan(event) {
     event.preventDefault();
@@ -892,7 +1216,12 @@ function debounce(func, wait) {
 // Placeholder functions for future implementation
 function viewRecipe(id) {
     console.log('View recipe:', id);
-    // TODO: Implement recipe view
+    const recipe = recipes.find(r => r.id === parseInt(id));
+    if (recipe) {
+        showRecipeModal(recipe);
+    } else {
+        showNotification('Recipe not found', 'error');
+    }
 }
 
 function editRecipe(id) {
@@ -909,6 +1238,68 @@ function deleteRecipe(id) {
 
 function viewMealPlan(id) {
     showMealPlanModal(id);
+}
+
+// Show recipe details modal
+function showRecipeModal(recipe) {
+    const modalOverlay = document.getElementById('modal-overlay');
+    const modalTitle = document.getElementById('modal-title');
+    const modalBody = document.getElementById('modal-body');
+    
+    modalTitle.textContent = recipe.title;
+    modalBody.innerHTML = `
+        <div class="recipe-details">
+            <div class="recipe-info">
+                <p><strong>Cuisine:</strong> ${recipe.cuisine || 'International'}</p>
+                <p><strong>Servings:</strong> ${recipe.servings || 1}</p>
+                <p><strong>Prep Time:</strong> ${recipe.prepTime || 0} minutes</p>
+                <p><strong>Cook Time:</strong> ${recipe.cookTime || 0} minutes</p>
+                <p><strong>Total Time:</strong> ${(recipe.prepTime || 0) + (recipe.cookTime || 0)} minutes</p>
+                <p><strong>Difficulty:</strong> ${recipe.difficulty || 'Unknown'}</p>
+            </div>
+            <div class="recipe-description">
+                <h3>Description</h3>
+                <p>${recipe.description || 'No description available'}</p>
+            </div>
+            <div class="recipe-ingredients">
+                <h3>Ingredients</h3>
+                <ul class="ingredient-list">
+                    ${recipe.ingredients ? recipe.ingredients.map(ingredient => `
+                        <li>${ingredient.amount} ${ingredient.unit} ${ingredient.name}</li>
+                    `).join('') : '<li>No ingredients listed</li>'}
+                </ul>
+            </div>
+            <div class="recipe-instructions">
+                <h3>Instructions</h3>
+                <ol class="instruction-list">
+                    ${recipe.instructions ? recipe.instructions.map(instruction => `
+                        <li>${instruction}</li>
+                    `).join('') : '<li>No instructions provided</li>'}
+                </ol>
+            </div>
+            ${recipe.nutrition ? `
+            <div class="recipe-nutrition">
+                <h3>Nutrition (per serving)</h3>
+                <div class="nutrition-grid">
+                    ${recipe.nutrition.calories ? `<div class="nutrition-item"><span class="nutrition-label">Calories:</span> <span class="nutrition-value">${recipe.nutrition.calories}</span></div>` : ''}
+                    ${recipe.nutrition.protein ? `<div class="nutrition-item"><span class="nutrition-label">Protein:</span> <span class="nutrition-value">${recipe.nutrition.protein}g</span></div>` : ''}
+                    ${recipe.nutrition.fat ? `<div class="nutrition-item"><span class="nutrition-label">Fat:</span> <span class="nutrition-value">${recipe.nutrition.fat}g</span></div>` : ''}
+                    ${recipe.nutrition.fiber ? `<div class="nutrition-item"><span class="nutrition-label">Fiber:</span> <span class="nutrition-value">${recipe.nutrition.fiber}g</span></div>` : ''}
+                </div>
+            </div>
+            ` : ''}
+            ${recipe.tags && recipe.tags.length > 0 ? `
+            <div class="recipe-tags">
+                <h3>Tags</h3>
+                <div class="tag-list">
+                    ${recipe.tags.map(tag => `<span class="tag">${tag}</span>`).join('')}
+                </div>
+            </div>
+            ` : ''}
+        </div>
+    `;
+    
+    modalOverlay.classList.add('active');
 }
 
 function editMealPlan(id) {
@@ -934,42 +1325,75 @@ async function showMealPlanModal(mealPlanId) {
             const recipesData = await recipesResponse.json();
             const allRecipes = recipesData.data || [];
             
+            // Group meals by day
+            const mealsByDay = {};
+            (mealPlan.meals || []).forEach(meal => {
+                if (!mealsByDay[meal.day]) {
+                    mealsByDay[meal.day] = [];
+                }
+                mealsByDay[meal.day].push(meal);
+            });
+            
+            // Calculate daily totals
+            const dailyTotals = {};
+            Object.keys(mealsByDay).forEach(day => {
+                const dayMeals = mealsByDay[day];
+                dailyTotals[day] = {
+                    calories: dayMeals.reduce((sum, meal) => sum + (meal.calories || 0), 0),
+                    protein: dayMeals.reduce((sum, meal) => sum + (meal.protein || 0), 0),
+                    carbs: dayMeals.reduce((sum, meal) => sum + (meal.carbs || 0), 0),
+                    fat: dayMeals.reduce((sum, meal) => sum + (meal.fat || 0), 0),
+                    fiber: dayMeals.reduce((sum, meal) => sum + (meal.fiber || 0), 0)
+                };
+            });
+            
             const content = `
-                <div class="meal-plan-details">
+                <div class="detailed-meal-plan">
                     <div class="meal-plan-header">
                         <h3>${mealPlan.name}</h3>
-                        <p>${new Date(mealPlan.startDate).toLocaleDateString()} - ${new Date(mealPlan.endDate).toLocaleDateString()}</p>
+                        <div class="plan-summary">
+                            <span class="plan-duration">${Object.keys(mealsByDay).length} days</span>
+                            <span class="plan-calories">${mealPlan.preferences?.dailyCalories || 2000} kcal/day target</span>
+                        </div>
                     </div>
                     
-                    <div class="meal-plan-meals">
-                        <h4>Meals</h4>
-                        <div id="meal-list-${mealPlanId}" class="meal-list">
-                            ${renderMealList(mealPlan.meals || [], allRecipes)}
-                        </div>
-                        
-                        <div class="add-meal-section">
-                            <h4>Add Recipe to Meal Plan</h4>
-                            <div class="add-meal-form">
-                                <select id="recipe-select-${mealPlanId}" class="form-select">
-                                    <option value="">Select a recipe...</option>
-                                    ${allRecipes.map(recipe => 
-                                        `<option value="${recipe.id}">${recipe.title}</option>`
-                                    ).join('')}
-                                </select>
-                                <select id="meal-type-${mealPlanId}" class="form-select">
-                                    <option value="breakfast">Breakfast</option>
-                                    <option value="lunch">Lunch</option>
-                                    <option value="dinner">Dinner</option>
-                                    <option value="snack">Snack</option>
-                                </select>
-                                <input type="date" id="meal-date-${mealPlanId}" class="form-input" 
-                                       min="${mealPlan.startDate}" max="${mealPlan.endDate}">
-                                <button class="btn btn-primary" onclick="addMealToPlan(${mealPlanId})">
-                                    <i class="fas fa-plus"></i>
-                                    Add Meal
-                                </button>
+                    <div class="meal-plan-days">
+                        ${Object.keys(mealsByDay).sort((a, b) => parseInt(a) - parseInt(b)).map(day => `
+                            <div class="day-section">
+                                <h4 class="day-header">Day ${day}</h4>
+                                <div class="day-meals">
+                                    ${mealsByDay[day].map(meal => `
+                                        <div class="meal-item clickable-meal" onclick="showMealDetails(${meal.recipeId})">
+                                            <div class="meal-type">${meal.mealType}</div>
+                                            <div class="meal-content">
+                                                <div class="meal-name">${meal.recipeName}</div>
+                                                <div class="meal-description">${meal.description}</div>
+                                                <div class="meal-macros">
+                                                    <span class="macro-item">${meal.protein || 0}g protein</span>
+                                                    <span class="macro-item">${meal.carbs || 0}g carbs</span>
+                                                    <span class="macro-item">${meal.fat || 0}g fat</span>
+                                                    <span class="macro-item">${meal.fiber || 0}g fiber</span>
+                                                </div>
+                                                <div class="meal-calories">${meal.calories || 0} kcal</div>
+                                            </div>
+                                            <div class="meal-click-hint">
+                                                <i class="fas fa-info-circle"></i>
+                                                <span>Click for details</span>
+                                            </div>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                                <div class="daily-total">
+                                    <div class="total-label">Daily Total</div>
+                                    <div class="total-calories">${dailyTotals[day].calories} kcal</div>
+                                    <div class="total-macros">
+                                        P: ${Math.round(dailyTotals[day].protein)}g • 
+                                        C: ${Math.round(dailyTotals[day].carbs)}g • 
+                                        F: ${Math.round(dailyTotals[day].fat)}g
+                                    </div>
+                                </div>
                             </div>
-                        </div>
+                        `).join('')}
                     </div>
                 </div>
             `;
@@ -981,6 +1405,91 @@ async function showMealPlanModal(mealPlanId) {
     } catch (error) {
         console.error('Error loading meal plan:', error);
         showNotification('Error loading meal plan', 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+// Show meal details modal
+async function showMealDetails(recipeId) {
+    try {
+        showLoading(true);
+        
+        // Find the recipe in the current recipes array
+        const recipe = recipes.find(r => r.id === parseInt(recipeId));
+        
+        if (!recipe) {
+            showNotification('Recipe not found', 'error');
+            return;
+        }
+        
+        const content = `
+            <div class="meal-details-modal">
+                <div class="meal-details-header">
+                    <h3>${recipe.title}</h3>
+                    <div class="meal-details-meta">
+                        <span class="meal-cuisine">${recipe.cuisine || 'International'}</span>
+                        <span class="meal-servings">${recipe.servings || 1} servings</span>
+                        <span class="meal-time">${(recipe.prepTime || 0) + (recipe.cookTime || 0)} min total</span>
+                    </div>
+                </div>
+                
+                <div class="meal-details-content">
+                    <div class="meal-description-section">
+                        <h4>Description</h4>
+                        <p>${recipe.description || 'No description available'}</p>
+                    </div>
+                    
+                    <div class="meal-nutrition-section">
+                        <h4>Nutrition (per serving)</h4>
+                        <div class="nutrition-grid">
+                            ${recipe.nutrition?.calories ? `<div class="nutrition-item"><span class="nutrition-label">Calories:</span> <span class="nutrition-value">${recipe.nutrition.calories}</span></div>` : ''}
+                            ${recipe.nutrition?.protein ? `<div class="nutrition-item"><span class="nutrition-label">Protein:</span> <span class="nutrition-value">${recipe.nutrition.protein}g</span></div>` : ''}
+                            ${recipe.nutrition?.carbs ? `<div class="nutrition-item"><span class="nutrition-label">Carbs:</span> <span class="nutrition-value">${recipe.nutrition.carbs}g</span></div>` : ''}
+                            ${recipe.nutrition?.fat ? `<div class="nutrition-item"><span class="nutrition-label">Fat:</span> <span class="nutrition-value">${recipe.nutrition.fat}g</span></div>` : ''}
+                            ${recipe.nutrition?.fiber ? `<div class="nutrition-item"><span class="nutrition-label">Fiber:</span> <span class="nutrition-value">${recipe.nutrition.fiber}g</span></div>` : ''}
+                        </div>
+                    </div>
+                    
+                    <div class="meal-ingredients-section">
+                        <h4>Ingredients</h4>
+                        <ul class="ingredients-list">
+                            ${recipe.ingredients ? recipe.ingredients.map(ingredient => `
+                                <li class="ingredient-item">
+                                    <span class="ingredient-amount">${ingredient.amount}</span>
+                                    <span class="ingredient-unit">${ingredient.unit}</span>
+                                    <span class="ingredient-name">${ingredient.name}</span>
+                                </li>
+                            `).join('') : '<li>No ingredients listed</li>'}
+                        </ul>
+                    </div>
+                    
+                    <div class="meal-instructions-section">
+                        <h4>Instructions</h4>
+                        <ol class="instructions-list">
+                            ${recipe.instructions ? recipe.instructions.map(instruction => `
+                                <li class="instruction-item">${instruction}</li>
+                            `).join('') : '<li>No instructions provided</li>'}
+                        </ol>
+                    </div>
+                    
+                    ${recipe.tags && recipe.tags.length > 0 ? `
+                    <div class="meal-tags-section">
+                        <h4>Tags</h4>
+                        <div class="tags-list">
+                            ${recipe.tags.map(tag => `<span class="tag">${tag}</span>`).join('')}
+                        </div>
+                    </div>
+                    ` : ''}
+                </div>
+            </div>
+        `;
+        
+        showModal('Meal Details', content);
+        
+    } catch (error) {
+        console.error('Error loading meal details:', error);
+        showNotification('Error loading meal details: ' + error.message, 'error');
     } finally {
         showLoading(false);
     }

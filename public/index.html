@@ -174,10 +174,16 @@
                         <h1>Meal Plans</h1>
                         <p>Plan your weekly meals</p>
                     </div>
-                    <button class="btn btn-primary" onclick="showAddMealPlanModal()">
-                        <i class="fas fa-plus"></i>
-                        Create Meal Plan
-                    </button>
+                    <div class="header-actions">
+                        <button class="btn btn-secondary" onclick="showAutoMealPlanGenerator()">
+                            <i class="fas fa-magic"></i>
+                            Auto Generate
+                        </button>
+                        <button class="btn btn-primary" onclick="showAddMealPlanModal()">
+                            <i class="fas fa-plus"></i>
+                            Create Meal Plan
+                        </button>
+                    </div>
                 </div>
 
                 <div id="meal-plans-list" class="meal-plans-list">
