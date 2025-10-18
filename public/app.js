@@ -3,6 +3,7 @@ let currentSection = 'dashboard';
 let recipes = [];
 let mealPlans = [];
 let ingredients = [];
+let isDarkMode = false;
 
 // API base URL
 const API_BASE = '/api';
@@ -12,6 +13,7 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeApp();
     setupEventListeners();
     loadDashboardData();
+    initializeTheme();
 });
 
 // Initialize the application
@@ -28,6 +30,12 @@ function initializeApp() {
 
 // Setup event listeners
 function setupEventListeners() {
+    // Theme toggle
+    const themeToggle = document.getElementById('theme-toggle');
+    if (themeToggle) {
+        themeToggle.addEventListener('click', toggleTheme);
+    }
+
     // Recipe search
     const recipeSearch = document.getElementById('recipe-search');
     if (recipeSearch) {
@@ -50,6 +58,23 @@ function setupEventListeners() {
     if (cuisineFilter) cuisineFilter.addEventListener('change', applyRecipeFilters);
     if (categoryFilter) categoryFilter.addEventListener('change', applyIngredientFilters);
     if (storageFilter) storageFilter.addEventListener('change', applyIngredientFilters);
+
+    // Modal overlay click to close
+    const modalOverlay = document.getElementById('modal-overlay');
+    if (modalOverlay) {
+        modalOverlay.addEventListener('click', function(e) {
+            if (e.target === modalOverlay) {
+                closeModal();
+            }
+        });
+    }
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeModal();
+        }
+    });
 }
 
 // Show specific section
@@ -766,9 +791,87 @@ function showLoading(show) {
     }
 }
 
+// Theme management
+function initializeTheme() {
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme) {
+        isDarkMode = savedTheme === 'dark';
+        updateTheme();
+    } else {
+        isDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        updateTheme();
+    }
+}
+
+function toggleTheme() {
+    isDarkMode = !isDarkMode;
+    updateTheme();
+    localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
+}
+
+function updateTheme() {
+    const themeToggle = document.getElementById('theme-toggle');
+    if (themeToggle) {
+        themeToggle.innerHTML = isDarkMode ? '<i class="fas fa-sun"></i>' : '<i class="fas fa-moon"></i>';
+    }
+    
+    document.documentElement.setAttribute('data-theme', isDarkMode ? 'dark' : 'light');
+}
+
+// Enhanced notification system
 function showNotification(message, type = 'info') {
-    // Simple notification - in a real app, you'd use a proper notification library
-    alert(`${type.toUpperCase()}: ${message}`);
+    // Create notification element
+    const notification = document.createElement('div');
+    notification.className = `notification notification-${type}`;
+    notification.innerHTML = `
+        <div class="notification-content">
+            <i class="fas fa-${getNotificationIcon(type)}"></i>
+            <span>${message}</span>
+        </div>
+        <button class="notification-close" onclick="this.parentElement.remove()">
+            <i class="fas fa-times"></i>
+        </button>
+    `;
+    
+    // Add styles
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: white;
+        border: 1px solid var(--gray-200);
+        border-radius: var(--radius-lg);
+        padding: 1rem;
+        box-shadow: var(--shadow-lg);
+        z-index: 1001;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        min-width: 300px;
+        animation: slideInRight 0.3s ease;
+    `;
+    
+    // Add to page
+    document.body.appendChild(notification);
+    
+    // Auto remove after 5 seconds
+    setTimeout(() => {
+        if (notification.parentElement) {
+            notification.style.animation = 'slideOutRight 0.3s ease';
+            setTimeout(() => notification.remove(), 300);
+        }
+    }, 5000);
+}
+
+function getNotificationIcon(type) {
+    const icons = {
+        success: 'check-circle',
+        error: 'exclamation-circle',
+        warning: 'exclamation-triangle',
+        info: 'info-circle'
+    };
+    return icons[type] || 'info-circle';
 }
 
 function debounce(func, wait) {
