@@ -53,44 +53,69 @@ router.post('/recipes/csv', upload.single('file'), async (req, res) => {
 
         // Parse CSV file
         await new Promise((resolve, reject) => {
+            let rowCount = 0;
+            let headerRow = null;
+            
             fs.createReadStream(req.file.path)
                 .pipe(csv())
                 .on('data', (row) => {
                     try {
-                        // Validate required fields
-                        if (!row.title || !row.description) {
-                            errors.push(`Row ${recipes.length + 1}: Missing required fields (title, description)`);
+                        rowCount++;
+                        
+                        // Store header row for debugging
+                        if (rowCount === 1) {
+                            headerRow = Object.keys(row);
+                        }
+                        
+                        // Debug: Log the first few rows to understand the structure
+                        if (rowCount <= 3) {
+                            console.log(`Row ${rowCount} data:`, row);
+                            console.log(`Row ${rowCount} keys:`, Object.keys(row));
+                        }
+                        
+                        // Check if row has any data
+                        const hasData = Object.values(row).some(value => value && value.toString().trim() !== '');
+                        if (!hasData) {
+                            errors.push(`Row ${rowCount}: Empty row`);
                             return;
                         }
+                        
+                        // Try to find title and description with flexible column matching
+                        const title = findColumnValue(row, ['title', 'name', 'recipe_name', 'recipe title']);
+                        const description = findColumnValue(row, ['description', 'desc', 'summary', 'notes']);
+                        
+                        // If we can't find title, try to use the first non-empty column
+                        const finalTitle = title || Object.values(row).find(value => value && value.toString().trim() !== '') || `Recipe ${rowCount}`;
+                        
+                        // If we can't find description, use a default
+                        const finalDescription = description || 'No description provided';
 
                         const recipe = {
-                            title: row.title.trim(),
-                            description: row.description.trim(),
-                            prepTime: parseInt(row.prepTime) || 0,
-                            cookTime: parseInt(row.cookTime) || 0,
-                            servings: parseInt(row.servings) || 1,
-                            difficulty: row.difficulty || 'easy',
-                            cuisine: row.cuisine || 'International',
-                            ingredients: row.ingredients ? 
-                                row.ingredients.split(';').map(ing => {
-                                    const parts = ing.trim().split(' ');
-                                    return {
-                                        amount: parts[0] || '1',
-                                        unit: parts[1] || 'piece',
-                                        name: parts.slice(2).join(' ') || ing.trim()
-                                    };
-                                }) : [],
-                            instructions: row.instructions ? 
-                                row.instructions.split(';').map(inst => inst.trim()).filter(Boolean) : [],
-                            tags: row.tags ? row.tags.split(',').map(tag => tag.trim()) : []
+                            title: finalTitle.toString().trim(),
+                            description: finalDescription.toString().trim(),
+                            prepTime: parseInt(findColumnValue(row, ['prepTime', 'prep_time', 'preparation time', 'prep'])) || 0,
+                            cookTime: parseInt(findColumnValue(row, ['cookTime', 'cook_time', 'cooking time', 'cook'])) || 0,
+                            servings: parseInt(findColumnValue(row, ['servings', 'serves', 'portions'])) || 1,
+                            difficulty: findColumnValue(row, ['difficulty', 'level', 'skill']) || 'easy',
+                            cuisine: findColumnValue(row, ['cuisine', 'type', 'style']) || 'International',
+                            ingredients: parseIngredientsFromRow(row),
+                            instructions: parseInstructionsFromRow(row),
+                            tags: parseTagsFromRow(row)
                         };
 
                         recipes.push(recipe);
                     } catch (error) {
-                        errors.push(`Row ${recipes.length + 1}: ${error.message}`);
+                        errors.push(`Row ${rowCount}: ${error.message}`);
                     }
                 })
-                .on('end', resolve)
+                .on('end', () => {
+                    // Add header information to errors if there are issues
+                    if (errors.length > 0 && headerRow) {
+                        errors.unshift(`CSV Headers found: ${headerRow.join(', ')}`);
+                        errors.unshift(`Expected headers: title, description, prepTime, cookTime, servings, difficulty, cuisine, ingredients, instructions, tags`);
+                    }
+                    resolve();
+                })
                 .on('error', reject);
         });
 
@@ -151,31 +176,63 @@ router.post('/ingredients/csv', upload.single('file'), async (req, res) => {
 
         // Parse CSV file
         await new Promise((resolve, reject) => {
+            let rowCount = 0;
+            let headerRow = null;
+            
             fs.createReadStream(req.file.path)
                 .pipe(csv())
                 .on('data', (row) => {
                     try {
-                        // Validate required fields
-                        if (!row.name) {
-                            errors.push(`Row ${ingredients.length + 1}: Missing required field (name)`);
+                        rowCount++;
+                        
+                        // Store header row for debugging
+                        if (rowCount === 1) {
+                            headerRow = Object.keys(row);
+                        }
+                        
+                        // Debug: Log the first few rows to understand the structure
+                        if (rowCount <= 3) {
+                            console.log(`Ingredient Row ${rowCount} data:`, row);
+                            console.log(`Ingredient Row ${rowCount} keys:`, Object.keys(row));
+                        }
+                        
+                        // Check if row has any data
+                        const hasData = Object.values(row).some(value => value && value.toString().trim() !== '');
+                        if (!hasData) {
+                            errors.push(`Row ${rowCount}: Empty row`);
+                            return;
+                        }
+                        
+                        // Try to find name with flexible column matching
+                        const name = findColumnValue(row, ['name', 'ingredient_name', 'item', 'food']);
+                        
+                        if (!name) {
+                            errors.push(`Row ${rowCount}: Missing required field (name). Available columns: ${Object.keys(row).join(', ')}`);
                             return;
                         }
 
                         const ingredient = {
-                            name: row.name.trim(),
-                            category: row.category || 'Other',
-                            storage: row.storage || 'pantry',
-                            unit: row.unit || 'piece',
-                            price: parseFloat(row.price) || 0,
-                            notes: row.notes || ''
+                            name: name.toString().trim(),
+                            category: findColumnValue(row, ['category', 'type', 'group']) || 'Other',
+                            storage: findColumnValue(row, ['storage', 'store', 'location']) || 'pantry',
+                            unit: findColumnValue(row, ['unit', 'measurement', 'measure']) || 'piece',
+                            price: parseFloat(findColumnValue(row, ['price', 'cost', 'amount']) || '0') || 0,
+                            notes: findColumnValue(row, ['notes', 'note', 'comments', 'description']) || ''
                         };
 
                         ingredients.push(ingredient);
                     } catch (error) {
-                        errors.push(`Row ${ingredients.length + 1}: ${error.message}`);
+                        errors.push(`Row ${rowCount}: ${error.message}`);
                     }
                 })
-                .on('end', resolve)
+                .on('end', () => {
+                    // Add header information to errors if there are issues
+                    if (errors.length > 0 && headerRow) {
+                        errors.unshift(`CSV Headers found: ${headerRow.join(', ')}`);
+                        errors.unshift(`Expected headers: name, category, storage, unit, price, notes`);
+                    }
+                    resolve();
+                })
                 .on('error', reject);
         });
 
@@ -274,6 +331,70 @@ router.post('/recipes/pdf', upload.single('file'), async (req, res) => {
     }
 });
 
+// Helper function to find column value with flexible matching
+function findColumnValue(row, possibleNames) {
+    for (const name of possibleNames) {
+        // Try exact match first
+        if (row[name] && row[name].toString().trim() !== '') {
+            return row[name];
+        }
+        
+        // Try case-insensitive match
+        const lowerName = name.toLowerCase();
+        for (const key of Object.keys(row)) {
+            if (key.toLowerCase() === lowerName && row[key] && row[key].toString().trim() !== '') {
+                return row[key];
+            }
+        }
+    }
+    return null;
+}
+
+// Helper function to parse ingredients from CSV row
+function parseIngredientsFromRow(row) {
+    const ingredientsText = findColumnValue(row, ['ingredients', 'ingredient', 'ingredient_list', 'items']);
+    if (!ingredientsText) return [];
+    
+    return ingredientsText.split(/[;,\n]/).map(ing => {
+        const trimmed = ing.trim();
+        if (!trimmed) return null;
+        
+        const parts = trimmed.split(/\s+/);
+        if (parts.length >= 2) {
+            return {
+                amount: parts[0],
+                unit: parts[1],
+                name: parts.slice(2).join(' ')
+            };
+        } else {
+            return {
+                amount: '1',
+                unit: 'piece',
+                name: trimmed
+            };
+        }
+    }).filter(Boolean);
+}
+
+// Helper function to parse instructions from CSV row
+function parseInstructionsFromRow(row) {
+    const instructionsText = findColumnValue(row, ['instructions', 'instruction', 'steps', 'directions', 'method']);
+    if (!instructionsText) return [];
+    
+    return instructionsText.split(/[;,\n]/).map(inst => {
+        const trimmed = inst.trim();
+        return trimmed ? trimmed.replace(/^\d+\.\s*/, '') : null;
+    }).filter(Boolean);
+}
+
+// Helper function to parse tags from CSV row
+function parseTagsFromRow(row) {
+    const tagsText = findColumnValue(row, ['tags', 'tag', 'categories', 'category']);
+    if (!tagsText) return [];
+    
+    return tagsText.split(/[,;]/).map(tag => tag.trim()).filter(Boolean);
+}
+
 // Helper function to extract recipes from PDF text
 function extractRecipesFromText(text) {
     const recipes = [];
@@ -366,3 +487,4 @@ function parseInstructions(text) {
 }
 
 module.exports = router;
+
