@@ -1027,8 +1027,10 @@ function validateFileType(file, expectedFormat) {
 }
 
 async function handleFileUpload(file, inputElement) {
-    const type = inputElement.id.split('-')[0]; // recipes or ingredients
-    const format = inputElement.id.split('-')[1]; // csv or pdf
+    const id = inputElement.id; // e.g., "recipes-csv-input"
+    const parts = id.split('-');
+    const type = parts[0]; // "recipes" or "ingredients"
+    const format = parts[1]; // "csv" or "pdf"
     
     try {
         showUploadProgress();
