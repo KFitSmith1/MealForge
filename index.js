@@ -59,6 +59,9 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// Serve static assets
+app.use('/static', express.static(path.join(__dirname, 'public')));
+
 // Error handling middleware
 app.use((err, req, res, next) => {
     console.error('Error:', err.stack);
